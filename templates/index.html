@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forex Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px;
+    background: #1B1D1F;
+    color: #E8E6E1;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  }
+  .container { max-width: 1000px; margin: 0 auto; }
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-bottom: 1px solid #3A3E42;
+    padding-bottom: 16px;
+    margin-bottom: 16px;
+  }
+  select {
+    background: #232629;
+    color: #E8E6E1;
+    border: 1px solid #3A3E42;
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+  .price {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 30px;
+    font-weight: 700;
+    color: #D9A441;
+    background: #101214;
+    border: 1px solid #3A3E42;
+    border-radius: 6px;
+    padding: 4px 14px;
+  }
+  .error {
+    background: rgba(181,73,60,0.15);
+    border: 1px solid #B5493C;
+    color: #E8B4AC;
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    background: #232629;
+    border: 1px solid #3A3E42;
+    border-left: 5px solid #D9A441;
+    border-radius: 6px;
+    padding: 18px 20px;
+    margin-bottom: 18px;
+  }
+  .signal {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 28px;
+    font-weight: 800;
+    letter-spacing: 2px;
+  }
+  .breakdown { font-size: 12.5px; color: #9A9691; line-height: 1.6; max-width: 420px; }
+  .targets { font-size: 12.5px; line-height: 1.7; text-align: right; }
+  .targets b { color: #D9A441; font-family: ui-monospace, monospace; }
+  .grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 16px;
+  }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .panel {
+    background: #232629;
+    border: 1px solid #3A3E42;
+    border-radius: 6px;
+    padding: 16px;
+  }
+  .panel h2 {
+    margin: 0 0 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #9A9691;
+  }
+  .news-item { padding: 10px 0; border-bottom: 1px solid #3A3E42; }
+  .news-item:last-child { border-bottom: none; }
+  .news-title { font-size: 13px; line-height: 1.4; margin-bottom: 4px; }
+  .news-meta { font-size: 11px; color: #9A9691; display: flex; gap: 8px; align-items: center; }
+  .tag { padding: 1px 7px; border-radius: 10px; font-size: 10.5px; }
+  .tag.bullish { background: rgba(92,138,102,0.25); color: #9FC7A8; }
+  .tag.bearish { background: rgba(181,73,60,0.25); color: #E8B4AC; }
+  .tag.neutral { background: rgba(154,150,145,0.2); color: #9A9691; }
+  .empty { font-size: 12.5px; color: #9A9691; padding: 12px 0; }
+  .rsi-row { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: #9A9691; }
+  .rsi-bar { flex: 1; height: 6px; background: #101214; border-radius: 3px; position: relative; }
+  .rsi-fill { position: absolute; top: 0; bottom: 0; width: 2px; background: #D9A441; }
+  .chart-wrap { height: 240px; }
+  .footer {
+    margin-top: 18px;
+    font-size: 11px;
+    color: #9A9691;
+    line-height: 1.6;
+    border-top: 1px solid #3A3E42;
+    padding-top: 12px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <form method="get">
+      <select name="pair" onchange="this.form.submit()">
+        {% for p in pairs %}
+        <option value="{{ p }}" {% if p == pair %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    {% if result %}
+    <div class="price">{{ format_price(pair, result.price) }}</div>
+    {% endif %}
+  </div>
+
+  {% if error %}
+  <div class="error">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+    {% if result.composite == 'BUY' %}
+      {% set signal_color = '#5C8A66' %}
+    {% elif result.composite == 'SELL' %}
+      {% set signal_color = '#B5493C' %}
+    {% else %}
+      {% set signal_color = '#D9A441' %}
+    {% endif %}
+
+  <div class="banner" style="border-left-color: {{ signal_color }}">
+    <div class="signal" style="color: {{ signal_color }}">{{ result.composite }}</div>
+    <div class="breakdown">
+      Technical: {{ result.tech_signal }}
+      (SMA20 {{ format_price(pair, result.sma20) }}
+      vs SMA50 {{ format_price(pair, result.sma50) }},
+      RSI {% if result.rsi14 is not none %}{{ '%.0f'|format(result.rsi14) }}{% else %}-{% endif %}).
+      News: {{ result.news_signal }}
+      ({% if result.sentiment_count %}avg sentiment {{ '%.2f'|format(result.avg_sentiment) }} across {{ result.sentiment_count }} tags{% else %}no news loaded{% endif %}).
+    </div>
+    <div class="targets">
+      20-pip buy target: <b>{{ format_price(pair, result.buy_target) }}</b><br>
+      20-pip sell target: <b>{{ format_price(pair, result.sell_target) }}</b>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Price &middot; SMA20 &middot; SMA50</h2>
+      {% if result.chart %}
+      <div class="chart-wrap"><canvas id="priceChart"></canvas></div>
+      {% else %}
+      <div class="empty">No price data.</div>
+      {% endif %}
+      <div class="rsi-row">
+        <span>RSI14</span>
+        <div class="rsi-bar">
+          {% if result.rsi14 is not none %}
+          <div class="rsi-fill" style="left: {{ result.rsi14 }}%"></div>
+          {% endif %}
+        </div>
+        <span>{% if result.rsi14 is not none %}{{ '%.0f'|format(result.rsi14) }}{% else %}-{% endif %}</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>News and sentiment</h2>
+      {% if result.news %}
+        {% for a in result.news %}
+        <div class="news-item">
+          <div class="news-title">{{ a.title }}</div>
+          <div class="news-meta">
+            <span>{{ a.source }}</span>
+            <span class="tag {{ a.tag }}">{{ a.tag }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">
+          {% if has_news_key %}No recent articles found.{% else %}Set MARKETAUX_KEY to see news here.{% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if result.chart %}
+  <script>
+    const chartData = {{ result.chart | tojson }};
+    new Chart(document.getElementById('priceChart'), {
+      type: 'line',
+      data: {
+        labels: chartData.map(d => d.time),
+        datasets: [
+          { label: 'Close', data: chartData.map(d => d.close), borderColor: '#D9A441', borderWidth: 2, pointRadius: 0, tension: 0.2 },
+          { label: 'SMA20', data: chartData.map(d => d.sma20), borderColor: '#5C8A66', borderWidth: 1.5, pointRadius: 0, tension: 0.2 },
+          { label: 'SMA50', data: chartData.map(d => d.sma50), borderColor: '#B5493C', borderWidth: 1.5, pointRadius: 0, tension: 0.2 }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#E8E6E1', boxWidth: 12, font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#9A9691', font: { size: 10 }, maxTicksLimit: 8 }, grid: { color: '#2B2F33' } },
+          y: { ticks: { color: '#9A9691', font: { size: 10 } }, grid: { color: '#2B2F33' } }
+        }
+      }
+    });
+  </script>
+  {% endif %}
+  {% endif %}
+
+  <div class="footer">
+    This signal is a simple two-factor rule (SMA20/SMA50 crossover plus RSI,
+    blended with average news sentiment). It is not a proven trading edge, not
+    financial advice, and it has not been backtested for you. Data comes from
+    the Twelve Data and MarketAux free tiers and is subject to their own rate
+    limits and accuracy.
+  </div>
+
+</div>
+</body>
+</html>
