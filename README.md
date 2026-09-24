@@ -1,5 +1,7 @@
 Forex Dashboard
 
+Author: Mohammad Raziq Mohammad Arshad Shaikh
+
 A small Flask web app that shows a simple BUY / SELL / HOLD signal for a forex pair. It pulls recent price data from Twelve Data, calculates a few technical indicators, optionally blends in news sentiment from MarketAux, and shows the result on a single page.
 
 1.	Overview
