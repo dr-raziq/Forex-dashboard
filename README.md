@@ -132,3 +132,5 @@ It is a single-page tool: pick a pair, the page reloads, and you see the current
         •	Add a Dockerfile for easier setup.
 
 
+12. Results
+    'results' folder contains all screenshots taken on 4th October 2026 live market at 11:12 am (Irish time).
